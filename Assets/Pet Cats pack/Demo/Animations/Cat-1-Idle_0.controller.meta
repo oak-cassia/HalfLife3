@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 5ec0439cf572d8a49a1e9530569e1524
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 9100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 248340
+  packageName: Pet Cats Pixel Art Pack
+  packageVersion: 1.0.0
+  assetPath: Assets/Pet Cats pack/Demo/Animations/Cat-1-Idle_0.controller
+  uploadId: 578467

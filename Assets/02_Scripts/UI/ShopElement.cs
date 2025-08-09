@@ -27,6 +27,7 @@ public class ShopElement : MonoBehaviour
     private bool isOpen = false;
 
     [SerializeField] private bool isCharacterButton = false;
+    [SerializeField] private bool isCatButton = false;
     public void Init()
     {
         button?.onClick.AddListener(ClickBtn);
@@ -45,6 +46,7 @@ public class ShopElement : MonoBehaviour
                 if (isActive)
                 {
                     FilterHuman();
+                    FilterCat();
                 }
                 PlayerPrefs.SetInt($"{id}_isActive", isActive ? 1 : 0);
                 PlayerPrefs.Save();
@@ -140,6 +142,16 @@ public class ShopElement : MonoBehaviour
             PlayerPrefs.SetInt("Human2_isActive", 0);
             PlayerPrefs.SetInt("Human3_isActive", 0);
             PlayerPrefs.SetInt("Human4_isActive", 0);
+        }
+    }
+
+    public void FilterCat()
+    {
+        if (isCatButton)
+        {
+            PlayerPrefs.SetInt("Cat1_isActive", 0);
+            PlayerPrefs.SetInt("Cat2_isActive", 0);
+            PlayerPrefs.SetInt("Cat3_isActive", 0);
         }
     }
 }

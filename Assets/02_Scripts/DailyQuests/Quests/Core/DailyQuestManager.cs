@@ -81,13 +81,53 @@ public sealed class DailyQuestManager : MonoBehaviour
         // DateManager의 날짜를 사용
         _todayStr = dateManager.GetCurrentDateString();
 
-        // 트랙 선택을 위해 activeTracks 초기화 (인스펙터 설정 무시)
-        activeTracks.Clear();
-        Debug.Log("[DailyQuestManager] activeTracks 초기화 완료 - 트랙 선택 대기");
+        // 트랙 초기화 여부 확인 (새로운 날이거나 1일이 지난 경우에만)
+        CheckAndClearTracksIfNeeded(dateManager);
 
         LoadOrInit();
         SetupNextGenTime();
         StartCoroutine(Scheduler());
+    }
+
+    /// <summary>
+    /// 새로운 날이거나 마지막 트랙 설정으로부터 1일이 지난 경우 트랙을 초기화합니다.
+    /// </summary>
+    private void CheckAndClearTracksIfNeeded(DateManager dateManager)
+    {
+        // 마지막 트랙 설정 날짜 확인
+        string lastTrackSetDate = PlayerPrefs.GetString("LastTrackSetDate", "");
+        
+        if (string.IsNullOrEmpty(lastTrackSetDate))
+        {
+            // 처음 실행하는 경우
+            Debug.Log("[DailyQuestManager] 처음 실행 - activeTracks 초기화");
+            activeTracks.Clear();
+            return;
+        }
+
+        if (DateTime.TryParse(lastTrackSetDate, out DateTime lastSetDate))
+        {
+            DateTime currentDate = DateTime.Parse(dateManager.GetCurrentDateString());
+            int daysDifference = dateManager.GetDaysBetween(lastSetDate, currentDate);
+            
+            if (daysDifference >= 1)
+            {
+                // 1일 이상 지난 경우 초기화
+                Debug.Log($"[DailyQuestManager] 마지막 트랙 설정으로부터 {daysDifference}일이 지났습니다 - activeTracks 초기화");
+                activeTracks.Clear();
+            }
+            else
+            {
+                // 같은 날이면 기존 트랙 유지
+                Debug.Log($"[DailyQuestManager] 같은 날 ({dateManager.GetCurrentDateString()}) - 기존 트랙 유지: [{string.Join(", ", activeTracks)}]");
+            }
+        }
+        else
+        {
+            // 파싱 실패 시 안전하게 초기화
+            Debug.LogWarning("[DailyQuestManager] 마지막 트랙 설정 날짜 파싱 실패 - activeTracks 초기화");
+            activeTracks.Clear();
+        }
     }
 
     // ===== Public API =====
@@ -367,8 +407,15 @@ public sealed class DailyQuestManager : MonoBehaviour
         activeTracks.Clear();
         activeTracks.AddRange(selectedTracks);
 
+        // 트랙 설정 시점 저장 (DateManager의 현재 날짜 사용)
+        var dateManager = DateManager.Instance;
+        string currentDate = dateManager.GetCurrentDateString();
+        PlayerPrefs.SetString("LastTrackSetDate", currentDate);
+        PlayerPrefs.Save();
+
         Debug.Log($"[DailyQuestManager] 활성 트랙 설정 완료: [{string.Join(", ", activeTracks)}]");
         Debug.Log($"[DailyQuestManager] 활성 트랙 개수: {activeTracks.Count}");
+        Debug.Log($"[DailyQuestManager] 트랙 설정 시점 저장: {currentDate}");
     }
 
     /// <summary>선택된 트랙으로 퀘스트 생성 (트랙 선택 UI에서 호출)</summary>
