@@ -88,9 +88,6 @@ public sealed class DailyQuestManager : MonoBehaviour
         LoadOrInit();
         SetupNextGenTime();
         StartCoroutine(Scheduler());
-
-        UpdateGitHubSettingsAsync(githubToken, githubUserAgent,  githubOwner, githubRepo);
-        StartGitHubVerification();
     }
 
     // ===== Public API =====
