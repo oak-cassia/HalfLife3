@@ -41,15 +41,18 @@ namespace _02_Scripts.Http // example.Services에서 Services로 변경
             string branchOrSha,
             CancellationToken ct)
         {
-            // Asia/Seoul의 "오늘" 경계 계산 → UTC ISO-8601
-            var seoul = TimeZoneInfo.FindSystemTimeZoneById("Asia/Seoul");
+            // UTC+9 (한국시간) 고정 오프셋으로 "오늘" 경계 계산
+            var koreaOffset = TimeSpan.FromHours(9);
             var nowUtc = DateTimeOffset.UtcNow;
-            var nowSeoul = TimeZoneInfo.ConvertTime(nowUtc, seoul);
-            var startLocal = new DateTime(nowSeoul.Year, nowSeoul.Month, nowSeoul.Day, 0, 0, 0, DateTimeKind.Unspecified);
-            var startSeoul = new DateTimeOffset(startLocal, seoul.GetUtcOffset(startLocal));
-            var endSeoul = startSeoul.AddDays(1);
-            var sinceUtc = startSeoul.ToUniversalTime();
-            var untilUtc = endSeoul.ToUniversalTime();
+            var nowKorea = nowUtc.ToOffset(koreaOffset);
+            
+            // 한국시간 기준 오늘 00:00:00 ~ 23:59:59
+            var startKorea = new DateTimeOffset(nowKorea.Year, nowKorea.Month, nowKorea.Day, 0, 0, 0, koreaOffset);
+            var endKorea = startKorea.AddDays(1);
+            
+            // UTC로 변환
+            var sinceUtc = startKorea.ToUniversalTime();
+            var untilUtc = endKorea.ToUniversalTime();
 
             // per_page=1 → Link last page 번호 == 총 개수
             var resp = await _client.ListCommitsRawAsync(owner, repo, sinceUtc, untilUtc, author, perPage: 1, branchOrSha, ct);

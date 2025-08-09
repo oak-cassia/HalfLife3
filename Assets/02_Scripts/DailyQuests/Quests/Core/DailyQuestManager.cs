@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using _02_Scripts.Http.Components;
+using _02_Scripts.Http; // GithubService를 위해 추가
 using _02_Scripts.Reward;
 using UnityEngine;
 
@@ -48,7 +49,7 @@ public sealed class DailyQuestManager : MonoBehaviour
     private DateTime nextGenTimeLocal;
     
     // GitHub 자동 검증 관련
-    private GithubClient _githubClient;
+    private GithubService _githubService;
     private Coroutine _verificationCoroutine;
 
     private string BasePath =>
@@ -481,8 +482,9 @@ public sealed class DailyQuestManager : MonoBehaviour
         
         try
         {
-            _githubClient = new GithubClient(githubToken, githubUserAgent);
-            Debug.Log("[DailyQuestManager] GitHub 클라이언트 초기화 완료");
+            var githubClient = new GithubClient(githubToken, githubUserAgent);
+            _githubService = new GithubService(githubClient);
+            Debug.Log("[DailyQuestManager] GitHub 서비스 초기화 완료");
             
             // 자동 검증 코루틴 시작
             if (_verificationCoroutine != null)
@@ -494,13 +496,13 @@ public sealed class DailyQuestManager : MonoBehaviour
         }
         catch (System.Exception ex)
         {
-            Debug.LogError($"[DailyQuestManager] GitHub 클라이언트 초기화 실패: {ex.Message}");
+            Debug.LogError($"[DailyQuestManager] GitHub 서비스 초기화 실패: {ex.Message}");
         }
     }
     
     private IEnumerator AutoVerifyPortfolioQuests()
     {
-        while (enableAutoVerification && _githubClient != null)
+        while (enableAutoVerification && _githubService != null)
         {
             yield return new WaitForSeconds(verificationInterval);
             
@@ -535,78 +537,34 @@ public sealed class DailyQuestManager : MonoBehaviour
         
         try
         {
-            // 시간 기준에 따라 다르게 처리
-            DateTimeOffset sinceUtc, untilUtc;
-            
-            if (useLocalTime)
-            {
-                // 로컬 시간 기준
-                var todayLocal = DateTime.Today; // 로컬 시간 기준 오늘 00:00:00
-                var nowLocal = DateTime.Now;     // 현재 로컬 시간
-                
-                sinceUtc = new DateTimeOffset(todayLocal); // 로컬 시간 그대로 DateTimeOffset으로 변환
-                untilUtc = new DateTimeOffset(nowLocal);   // 로컬 시간 그대로 DateTimeOffset으로 변환
-                
-                Debug.Log($"[DailyQuestManager] 로컬 시간 기준으로 GitHub API 호출");
-                Debug.Log($"[DailyQuestManager] Local Since: {todayLocal:yyyy-MM-dd HH:mm:ss}");
-                Debug.Log($"[DailyQuestManager] Local Until: {nowLocal:yyyy-MM-dd HH:mm:ss}");
-            }
-            else
-            {
-                // UTC 시간 기준 (권장)
-                var todayUtc = DateTime.UtcNow.Date; // UTC 기준 오늘 날짜
-                sinceUtc = new DateTimeOffset(todayUtc, TimeSpan.Zero); // UTC 오늘 00:00:00
-                untilUtc = DateTimeOffset.UtcNow; // 현재 UTC 시간
-                
-                Debug.Log($"[DailyQuestManager] UTC 시간 기준으로 GitHub API 호출");
-            }
-            
-            Debug.Log($"[DailyQuestManager] API 요청 시간: since={sinceUtc:yyyy-MM-ddTHH:mm:sszzz}, until={untilUtc:yyyy-MM-ddTHH:mm:sszzz}");
-            
-            var response = await _githubClient.ListCommitsRawAsync(
-                githubOwner, 
-                githubRepo, 
-                sinceUtc, 
-                untilUtc, 
-                author: "", // 모든 작성자
-                perPage: 100, // 최대 100개
-                branchOrSha: githubBranch, // 브랜치 지정 (빈 값이면 default)
+            // GithubService의 GetTodayCommitCountAsync 사용 (UTC+9 기준)
+            var commitCount = await _githubService.GetTodayCommitCountAsync(
+                githubOwner,
+                githubRepo,
+                githubOwner, // author로 사용 (빈 문자열 대신 owner 사용)
+                githubBranch, // 브랜치 지정 (빈 값이면 default branch 사용)
                 CancellationToken.None
             );
             
-            if (response.Ok)
+            Debug.Log($"[DailyQuestManager] 오늘 커밋 수: {commitCount}");
+            
+            // 커밋이 1개 이상이면 Portfolio 퀘스트들을 완료 처리
+            if (commitCount > 0)
             {
-                var commitCount = CountCommitsInResponse(response.Data);
+                Debug.Log($"🚀 [DailyQuestManager] GitHub에서 {commitCount}개의 커밋 확인! Portfolio 퀘스트 자동 완료 시작");
                 
-                Debug.Log($"[DailyQuestManager] 오늘 커밋 수: {commitCount}");
+                foreach (var quest in portfolioQuests)
+                {
+                    Debug.Log($"🔧 [DailyQuestManager] GitHub 자동 검증으로 Portfolio 퀘스트 완료: {quest.id} - {quest.title}");
+                    CompleteQuest(quest.id);
+                }
                 
-                // 커밋이 1개 이상이면 Portfolio 퀘스트들을 완료 처리
-                if (commitCount > 0)
-                {
-                    Debug.Log($"🚀 [DailyQuestManager] GitHub에서 {commitCount}개의 커밋 확인! Portfolio 퀘스트 자동 완료 시작");
-                    
-                    foreach (var quest in portfolioQuests)
-                    {
-                        Debug.Log($"🔧 [DailyQuestManager] GitHub 자동 검증으로 Portfolio 퀘스트 완료: {quest.id} - {quest.title}");
-                        CompleteQuest(quest.id);
-                    }
-                    
-                    Debug.Log($"✨ [DailyQuestManager] GitHub 자동 검증 완료! {portfolioQuests.Count}개 Portfolio 퀘스트가 자동으로 완료되었습니다.");
-                }
-                else
-                {
-                    Debug.Log($"📝 [DailyQuestManager] 오늘 아직 커밋이 없습니다. Portfolio 퀘스트는 대기 상태로 유지됩니다.");
-                }
+                Debug.Log($"✨ [DailyQuestManager] GitHub 자동 검증 완료! {portfolioQuests.Count}개 Portfolio 퀘스트가 자동으로 완료되었습니다.");
             }
             else
             {
-                Debug.LogWarning($"[DailyQuestManager] GitHub API 호출 실패: Status {response.Status}");
+                Debug.Log($"📝 [DailyQuestManager] 오늘 아직 커밋이 없습니다. Portfolio 퀘스트는 대기 상태로 유지됩니다.");
             }
-        }
-        catch (System.ArgumentException ex)
-        {
-            Debug.LogError($"[DailyQuestManager] 시간 설정 오류: {ex.Message}");
-            Debug.LogError("[DailyQuestManager] Use Local Time 설정을 확인해주세요. UTC 기준(false) 권장.");
         }
         catch (System.Net.Http.HttpRequestException ex)
         {
@@ -627,49 +585,6 @@ public sealed class DailyQuestManager : MonoBehaviour
         }
     }
     
-    private int CountCommitsInResponse(string jsonResponse)
-    {
-        // 간단한 방법으로 JSON 배열의 요소 개수 세기
-        if (string.IsNullOrEmpty(jsonResponse) || jsonResponse.Trim() == "[]")
-        {
-            return 0;
-        }
-        
-        // JSON 배열에서 객체 개수를 세는 간단한 방법
-        var count = 0;
-        var inString = false;
-        var escapeNext = false;
-        
-        for (int i = 0; i < jsonResponse.Length; i++)
-        {
-            var c = jsonResponse[i];
-            
-            if (escapeNext)
-            {
-                escapeNext = false;
-                continue;
-            }
-            
-            if (c == '\\')
-            {
-                escapeNext = true;
-                continue;
-            }
-            
-            if (c == '"')
-            {
-                inString = !inString;
-                continue;
-            }
-            
-            if (!inString && c == '{')
-            {
-                count++;
-            }
-        }
-        
-        return count;
-    }
 
     // 다음 프레임에서 퀘스트 완료 이벤트 재발생 (안전성 강화)
     private System.Collections.IEnumerator InvokeQuestCompletedNextFrame(QuestData questData)
