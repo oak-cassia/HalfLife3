@@ -3891,6 +3891,7 @@ MonoBehaviour:
   foreground: {fileID: 743016828}
   valueText: {fileID: 202141910}
   rewardType: 0
+  rewardButton: {fileID: 1424063292}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
