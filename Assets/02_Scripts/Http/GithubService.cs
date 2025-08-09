@@ -79,5 +79,42 @@ namespace _02_Scripts.Http // example.Services에서 Services로 변경
                 return 0;
             }
         }
+
+        // 특정 시점(since) 이후의 커밋 수를 조회하는 메서드 추가
+        public async Awaitable<int> GetCommitCountSinceAsync(
+            string owner,
+            string repo,
+            string author,
+            string branchOrSha,
+            DateTimeOffset since,
+            CancellationToken ct)
+        {
+            var now = DateTimeOffset.UtcNow;
+            
+            // per_page=1 → Link last page 번호 == 총 개수
+            var resp = await _client.ListCommitsRawAsync(owner, repo, since, now, author, perPage: 1, branchOrSha, ct);
+            if (!resp.Ok)
+            {
+                Debug.LogWarning($"GitHub commits 실패: {resp.Status}\n{resp.Raw}");
+                return 0;
+            }
+
+            if (resp.Headers.TryGetValue("Link", out var link))
+            {
+                var m = Regex.Match(link, @"[?&]page=(\d+)>;\s*rel=""last""");
+                if (m.Success && int.TryParse(m.Groups[1].Value, out var n))
+                    return n;
+            }
+
+            try
+            {
+                var arr = JArray.Parse(resp.Raw);
+                return arr.Count; // 0 or 1
+            }
+            catch
+            {
+                return 0;
+            }
+        }
     }
 }
